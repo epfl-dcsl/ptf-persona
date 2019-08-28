@@ -1,0 +1,64 @@
+* What is Persona shell?
+  - This contains all of the commands to execute all components of the PTF-Persona application.
+  - This is a collection of applications that serve as client, server, and local executor, all wrapped up into this shell command.
+  - Uses the PTF-System repository to assemble PTF applications.
+* How do I run it?
+** Prerequisites
+   - All of the system runs in Docker for ease.
+   - If you want to build outside of Docker, replicate the steps in the Dockerfiles manually.
+*** [[https://github.com/epfl-dcsl/ptf-system][PTF System]]
+    - Download the PTF system repository linked above
+    - Use the [[[[https://github.com/epfl-dcsl/ptf-system/blob/master/build_container.sh]]][build container script]] to build the PTF system packaged with the correct name.
+    - Further steps will be built on top of the PTF system package with this name.
+    - If you want to build PTF Persona outside of the Docker container, you can copy the pip wheel file out of the container. See the PTF System repo for further instructions.
+** Constructing an AGD Dataset
+    - The offline conversion steps for creating an AGD dataset must be done in a prior iteration of the Persona application shell.
+    - This prior iteration uses the same underlying Persona library as this system (PTF-Persona), but an older version of applcation conversion.
+    - We will use Docker for this step for compatibility. Please replicate these steps (or similar) outside of Docker if you want a native install / build.
+*** Download the offline Persona submodule
+    First, make sure that you have the code imported as a submodule to this repository by using the git command.
+    #+begin_src sh
+    git submodule update --init
+    #+end_src
+*** Create the container for the Persona shell
+    - Build the Docker container that contains the Persona application.
+    - This can be skipped if you volume-mount the current directory, but this approach keeps things cleaner.
+    - This docker command must be executed in the original_persona directory.
+    #+begin_src sh :dir original_persona
+    docker build --tag ptf-orig .
+    #+end_src
+*** Download an example FASTQ file
+*** Start the docker container
+    #+begin_src sh
+    docker run --rm -it -v "/path/to/fastq_dataset":/dataset ptf-orig bash
+    #+end_src
+*** Convert the dataset using the Docker container
+    :PROPERTIES:
+    :CUSTOM_ID: docker_dataset_gen
+    :END:
+    - You can exercise other options for parallelism, chunking (the --chunk option) and the name. See the help option for import_fastq.
+    #+begin_src sh
+    # run this in the docker container!
+    ./persona import_fastq --chunk 100000 --name MyFirstAGD --out /dataset/MyFirstAGD.agd /dataset/my_dataset.fastq
+    #+end_src
+    - Now your dataset is in ~/path/to/fastq_dataset/MyFirstAGD.agd~
+** Running an align-sort application
+   - We will run this in the Docker container for this shell.
+   - To build this natively, consult the Docker file for the steps for building this.
+*** Build the container
+    - Requires the PTF System container to be available.
+    #+begin_src sh
+    docker build --tag ptf-shell .
+    #+end_src
+*** Start the container with the AGD dataset
+    - Using the AGD dataset we made in [[#docker_dataset_gen][the previous step]], we map this location into the docker container and start a normal bash shell.
+    - You will also need to map in a location of the table that [[http://snap.cs.berkeley.edu/][SNAP aligner]] uses. See [[http://snap.cs.berkeley.edu/downloads/snap-1.0beta-quickstart.pdf][their quickstart guide]] for how to do this. We will only need a single-end index for this example.
+    #+begin_src sh
+    docker run --rm -it -v "/path/to/fastq_dataset/MyFirstAGD.agd":/agd_dataset -v "/path/to/index":/snap_index ptf-shell bash
+    #+end_src
+*** Run the align-sort application using 
+    #+begin_src sh
+    ./persona local align-sort -d /agd_dataset --fused-index-path /snap_index /agd_dataset/MyFirstAGD.json
+    #+end_src
+* [[https://arxiv.org/abs/1908.09291][Research paper]]
+  - This research paper on Arxiv describes the architectural components of PTF that are crucial to its scale-out and multi-request capabilities.

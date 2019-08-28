@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+import app
+import runtime
+from runtime import worker, benchmark
+from common import util
+
+import logging
+logging.basicConfig(level=logging.DEBUG)  # only needed once for the entire application
+
+from app.app import Application
+from runtime.runtime import Runtime
+
+def import_apps_and_runtimes():
+    util.import_submodules(app)
+    util.import_submodules(runtime)
+
+def get_args():
+    parser = argparse.ArgumentParser(description="Persona -- High-Performance Bioinformatics",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter, add_help=True) #, add_help=False)
+
+    subparsers = parser.add_subparsers(help="Available modules; use $ persona <command> -h for details", dest="command")
+    for runtime_class in Runtime.__subclasses__():
+        runtime_parser = subparsers.add_parser(runtime_class.name(), help=runtime_class.help_message())
+        runtime_class.add_arguments(parser=runtime_parser)
+
+        application_subparsers = runtime_parser.add_subparsers(help="Available modules", dest="application")
+        for app_class in Application.__subclasses__():
+            app_parser = application_subparsers.add_parser(app_class.name(), help=app_class.help_message())
+            runtime_class.populate_app_args(parser=app_parser, app=app_class)
+            app_parser.set_defaults(application_class=app_class)
+        runtime_parser.set_defaults(runtime_class=runtime_class)
+
+    # add the worker subparser
+    worker_subparser = subparsers.add_parser(worker.worker_command, help="run the worker process for the distributed runtime")
+    worker.add_args(parser=worker_subparser)
+
+    # add the benchmark subparser
+    bench_subparser = subparsers.add_parser(benchmark.benchmark_command, help="run the benchmark process")
+    benchmark.add_args(parser=bench_subparser)
+
+    return parser.parse_args()
+
+def print_help_message(file=sys.stdout):
+    msg = (
+        "              ___                                 \n"
+        "-. .-.   .   / _ \___ _ __ ___  ___  _ __   __ _  .-. .-.   .\n"
+        "||\|||\ /|  / /_)/ _ \ '__/ __|/ _ \| '_ \ / _` | |||\|||\ /|\n"
+        "|/ \|||\|| / ___/  __/ |  \__ \ (_) | | | | (_| | ||/ \|||\||\n"
+        "~   `-~ `- \ /   \___|_|  |___/\___/|_| |_|\__,_| -`   `-~ `-\n"
+        "Persona -- High-Performance Bioinformatics\n"
+        "Use $ persona -h to see available options"
+    )
+    print(msg, file=file)
+
+if __name__ == "__main__":
+    if (len(sys.argv) == 1):
+        print_help_message()
+    else:
+        import_apps_and_runtimes()
+        args = get_args()
+
+        if args.command == worker.worker_command:
+            worker.run(args=args)
+        elif args.command == benchmark.benchmark_command:
+            benchmark.run(args=args)
+        else:
+            assert issubclass(args.runtime_class, Runtime)
+            if hasattr(args, "application_class"):
+                args.runtime_class().run_application(application=args.application_class, args=args)
+            else:
+                print("Must specify an application!", file=sys.stderr)
+                print_help_message(file=sys.stderr)
+                sys.exit(1)

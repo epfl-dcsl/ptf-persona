@@ -1,0 +1,3 @@
+[submodule "original_persona/persona"]
+	path = original_persona/persona
+	url = https://github.com/epfl-dcsl/persona-orig.git

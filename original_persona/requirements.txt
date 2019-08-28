@@ -1,0 +1,9 @@
+gitpython
+spur
+numpy
+Pyro4
+scp
+psutil
+keras_applications
+keras_preprocessing
+pysam
